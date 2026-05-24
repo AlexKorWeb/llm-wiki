@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+
+# Secrets — NEVER commit
+.env
+*.session
+*.session-journal
+
+# Telegram inbox: keep the folder, ignore transient incoming posts & images.
+# (Processed images are moved into raw/_assets/ and ARE tracked.)
+raw/_inbox/*
+!raw/_inbox/.gitkeep
+
+# Logs
+scripts/logs/
+
+# Editor / local
+.obsidian/
+.claude/settings.local.json
+.DS_Store
