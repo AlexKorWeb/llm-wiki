@@ -3,6 +3,10 @@
 **A self-maintaining knowledge base where the LLM — not a vector database — is the index.**
 Forward a Telegram post, drop a note, or paste a URL → an AI agent researches it, writes a detailed source file and a cross-linked wiki page, updates the navigation index, and commits to git. Turnkey.
 
+![Knowledge graph of an LLM Wiki opened in Obsidian](docs/graph.png)
+
+*The wiki opened as an [Obsidian](https://obsidian.md) vault — every `related:` link and `[[wikilink]]` becomes an edge, with `index.md` as the hub. The graph grows itself as you forward posts.*
+
 Inspired by [Andrej Karpathy's note-taking method](https://github.com/karpathy): instead of RAG over chunks, you keep a clean, hand-shaped Markdown wiki that the model reads, extends, and links by itself.
 
 🇷🇺 [Русская версия README](README.ru.md)
