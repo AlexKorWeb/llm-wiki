@@ -19,7 +19,7 @@ Inspired by [Andrej Karpathy's note-taking method](https://github.com/karpathy):
 
 ## How it works
 
-```
+```text
                 Telegram (forward a post / paste a URL)
                               │
                               ▼
@@ -46,7 +46,7 @@ The method lives in [`CLAUDE.md`](CLAUDE.md) (the agent reads it first) and in t
 
 ## Layout
 
-```
+```text
 .
 ├── CLAUDE.md             # the method (INGEST / QUERY / LINT) — agent reads this first
 ├── .claude/skills/llm-wiki/SKILL.md   # installable Claude Code Skill
@@ -88,7 +88,7 @@ cd my-wiki
 
 Drop any note into `raw/`, open Claude Code in the repo, and say:
 
-```
+```text
 Обработай raw/my-note.md  (или: "ingest raw/my-note.md")
 ```
 
@@ -96,7 +96,7 @@ Claude reads `CLAUDE.md`, researches the topic, and produces a `knowledge/` page
 
 You can also just ask questions (QUERY) or request a health check (LINT):
 
-```
+```text
 Что у нас по теме X?         # QUERY — answers from the wiki, saves good answers as pages
 Проверь вики (lint)          # LINT — broken links, orphans, contradictions, stale pages
 ```
@@ -125,6 +125,35 @@ python scripts/tg_bot.py
 ```
 
 Now **forward any post** (or send a URL / YouTube link / image with a caption) to your bot. After ~60s of silence it runs `claude -p` on each item, writes the articles, commits, pushes, and pings you with a summary. Bot commands: `/status`, `/stop` (plus an inline 🛑 button).
+
+## Obsidian & mobile sync 📱
+
+The wiki is plain Markdown, so it doubles as an **[Obsidian](https://obsidian.md) vault** — just *Open folder as vault* and point it at the repo.
+
+- **Graph view** visualizes the knowledge network: every `related:` entry and every `[[wikilink]]` becomes an edge, with `index.md` as the hub. Watching the graph grow after each ingest is half the fun.
+- **Backlinks, full-text search, and tags** work out of the box across your `knowledge/` pages.
+
+### Read & edit on your phone, synced through GitHub
+
+The Telegram bot already commits + pushes after every ingest, so your phone only needs to **pull**:
+
+1. Install **Obsidian** on your phone and open the cloned repo as a vault.
+2. Install the **[Obsidian Git](https://github.com/Vinzent03/obsidian-git)** community plugin (works directly on Android; on iOS pair it with [Working Copy](https://workingcopy.app)).
+3. Enable **“Pull on startup”** (and an optional auto-pull interval). Now every article the bot generates appears on your phone — graph and backlinks included.
+
+The full loop:
+
+```text
+forward a post on your phone
+        │
+        ▼
+bot ingests on your always-on machine  →  git commit + push to GitHub
+        │
+        ▼
+Obsidian Git pulls on your phone  →  you read the finished, cross-linked article
+```
+
+> `.obsidian/` is gitignored, so each device keeps its own layout and plugins — install Obsidian Git once per device. (Want shared graph colors/settings? Remove `.obsidian/` from `.gitignore` and commit a minimal config.)
 
 ## Running 24/7 (optional)
 
