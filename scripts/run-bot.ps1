@@ -3,15 +3,18 @@
 # .ps1 files and fails to parse. Keep every character in this file 7-bit ASCII.
 #
 # Responsibilities:
-#   1. Put claude.exe, git.exe and the correct python on PATH for child process
+#   1. Run the bot with pythonw.exe (WINDOWLESS): no console window appears, so it
+#      cannot be accidentally closed. A console window would otherwise let a stray
+#      close/Ctrl+C kill the bot (STATUS_CONTROL_C_EXIT / 0xC000013A).
+#   2. Put claude.exe, git.exe and the correct python on PATH for the child process
 #      (tg_bot.py resolves `claude` via shutil.which and calls `git` directly).
-#   2. Single-instance guard: never start a second poller (Telegram returns 409
+#   3. Single-instance guard: never start a second poller (Telegram returns 409
 #      Conflict if two processes long-poll the same bot token).
-#   3. Supervise: restart on crash (exit code != 0) with escalating backoff, but
+#   4. Supervise: restart on crash (exit code != 0) with escalating backoff, but
 #      RESPECT a clean /stop (exit code 0) and stop supervising.
-#   4. Circuit breaker: give up after repeated rapid failures (e.g. missing token)
+#   5. Circuit breaker: give up after repeated rapid failures (e.g. missing token)
 #      so a permanent config error does not become a hot restart loop.
-#   5. Log launcher-level events to scripts\logs\launcher_<date>.log.
+#   6. Log launcher-level events to scripts\logs\launcher_<date>.log.
 
 $ErrorActionPreference = 'Stop'
 
@@ -29,22 +32,36 @@ function Write-Log([string]$msg) {
     Write-Host $line
 }
 
-# --- Resolve python: prefer the interpreter that actually has telegram ------
-function Resolve-Python {
+# --- Run a python interpreter windowless and return its exit code -----------
+# argLine is a single, already-quoted command line. Passing it as one string
+# (not an array) avoids PowerShell 5.1 joining array elements without quoting,
+# which would split a -c "import a, b" snippet into broken argv tokens.
+function Invoke-Windowless([string]$exe, [string]$argLine) {
+    $p = Start-Process -FilePath $exe -ArgumentList $argLine -WindowStyle Hidden -PassThru -Wait
+    return $p.ExitCode
+}
+
+# --- Resolve pythonw.exe: prefer the interpreter that actually has telegram --
+# Returns the WINDOWLESS interpreter (pythonw.exe) so no console is ever shown.
+function Resolve-PythonW {
     $candidates = @(
-        (Join-Path $env:LOCALAPPDATA 'Python\pythoncore-3.14-64\python.exe'),
-        (Join-Path $env:LOCALAPPDATA 'Python\pythoncore-3.12-64\python.exe')
+        (Join-Path $env:LOCALAPPDATA 'Python\pythoncore-3.14-64\pythonw.exe'),
+        (Join-Path $env:LOCALAPPDATA 'Python\pythoncore-3.12-64\pythonw.exe')
     )
     foreach ($c in $candidates) {
         if (Test-Path $c) {
-            & $c -c "import telegram, dotenv" 2>$null
-            if ($LASTEXITCODE -eq 0) { return $c }
+            if ((Invoke-Windowless $c '-c "import telegram, dotenv"') -eq 0) { return $c }
         }
     }
-    # Fallback: py launcher, newest first
+    # Fallback: py launcher resolves python.exe; swap to the pythonw.exe sibling.
     foreach ($ver in @('-3.14', '-3.12', '-3')) {
-        $probe = & py $ver -c "import sys,telegram,dotenv; print(sys.executable)" 2>$null
-        if ($LASTEXITCODE -eq 0 -and $probe) { return $probe.Trim() }
+        $probe = & py $ver -c "import sys; print(sys.executable)" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $probe) {
+            $pw = $probe.Trim() -replace 'python\.exe$', 'pythonw.exe'
+            if ((Test-Path $pw) -and (Invoke-Windowless $pw '-c "import telegram, dotenv"') -eq 0) {
+                return $pw
+            }
+        }
     }
     return $null
 }
@@ -70,12 +87,12 @@ if ($existing) {
     exit 0
 }
 
-$python = Resolve-Python
-if (-not $python) {
-    Write-Log "FATAL: no python with telegram+dotenv found. Run: pip install -r requirements.txt"
+$pythonw = Resolve-PythonW
+if (-not $pythonw) {
+    Write-Log "FATAL: no pythonw.exe with telegram+dotenv found. Run: pip install -r requirements.txt"
     exit 1
 }
-Write-Log "Launcher start. python=$python claudeOnPath=$([bool](Get-Command claude -ErrorAction SilentlyContinue)) gitOnPath=$([bool](Get-Command git -ErrorAction SilentlyContinue))"
+Write-Log "Launcher start. pythonw=$pythonw claudeOnPath=$([bool](Get-Command claude -ErrorAction SilentlyContinue)) gitOnPath=$([bool](Get-Command git -ErrorAction SilentlyContinue))"
 
 # --- Supervision loop -------------------------------------------------------
 $rapidFailures   = 0          # consecutive failures that died quickly
@@ -86,18 +103,21 @@ $backoffSchedule = @(10, 20, 40, 60, 60, 120, 120, 300)  # seconds, indexed by r
 Set-Location $ScriptDir
 while ($true) {
     $start = Get-Date
-    Write-Log "Starting tg_bot.py ..."
+    Write-Log "Starting tg_bot.py (windowless) ..."
     try {
-        & $python $BotScript
-        $code = $LASTEXITCODE
+        # -WindowStyle Hidden + pythonw.exe => no console window at all, so the
+        # bot cannot be accidentally closed. -Wait blocks until the bot exits.
+        $proc = Start-Process -FilePath $pythonw -ArgumentList @("`"$BotScript`"") `
+                              -WorkingDirectory $ScriptDir -WindowStyle Hidden -PassThru -Wait
+        $code = $proc.ExitCode
     } catch {
         $code = 1
-        Write-Log "Launcher caught exception starting python: $($_.Exception.Message)"
+        Write-Log "Launcher caught exception starting pythonw: $($_.Exception.Message)"
     }
     $ranSec = [int]((Get-Date) - $start).TotalSeconds
 
     if ($code -eq 0) {
-        Write-Log "tg_bot.py exited cleanly (code 0, ran ${ranSec}s) -- this is a deliberate /stop. Supervisor exiting."
+        Write-Log "tg_bot.py exited cleanly (code 0, ran ${ranSec}s) -- deliberate /stop. Supervisor exiting."
         break
     }
 
