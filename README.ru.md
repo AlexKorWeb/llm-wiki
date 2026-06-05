@@ -163,7 +163,12 @@ Obsidian Git делает pull на телефоне  →  читаешь гот
 
 Бот работает, пока жив процесс и доступен `claude`. Чтобы держать его всегда включённым:
 
-- **Локально:** под менеджером процессов (pm2, nssm на Windows, systemd на Linux) или в `tmux`/screen.
+- **Windows (под ключ):** запуск скрыто при каждом входе в систему — одна команда:
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File scripts/install-autostart.ps1
+  ```
+  Регистрирует задачу планировщика, которая поднимает бота через `wscript → run-bot.vbs → скрытый PowerShell → pythonw.exe`, поэтому **окно консоли не появляется вообще** и его нельзя случайно закрыть. Supervisor перезапускает бота при падении (с backoff), single-instance guard не даёт запустить второй поллер, а дочерние вызовы `claude`/`git` тоже идут без окна. Остановить: `powershell -File scripts/stop-bot.ps1` (или `/stop` в Telegram); снять автозапуск: `Unregister-ScheduledTask -TaskName "LLM Wiki Telegram Bot" -Confirm:$false`.
+- **Другие ОС:** под менеджером процессов (pm2, systemd на Linux) или в `tmux`/screen.
 - **На сервере:** положи репозиторий на маленький VPS с установленным Claude Code; синхронизация через git.
 
 ## Безопасность
@@ -184,6 +189,9 @@ Obsidian Git делает pull на телефоне  →  читаешь гот
 
 - `scripts/flush.py "описание" [--files a.md b.md]` — добавляет запись о сессии в `daily/YYYY-MM-DD.md` (удобно как Claude Code hook).
 - `scripts/compile.py --days 30` — сводка по дневным логам и подсветка страниц, которые стоит обновить.
+- `scripts/install-autostart.ps1` — Windows: регистрирует скрытую задачу автозапуска (по входу в систему, single-instance, перезапуск при падении).
+- `scripts/stop-bot.ps1` — Windows: надёжно останавливает бота и supervisor (то, что не может `Stop-ScheduledTask`, т.к. бота запускает «fire-and-forget» `wscript`).
+- `scripts/run-bot.ps1` / `scripts/run-bot.vbs` — безоконный лаунчер + supervisor, которые вызывает задача (напрямую обычно не запускаются).
 
 ## Лицензия
 

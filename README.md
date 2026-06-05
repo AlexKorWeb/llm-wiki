@@ -163,7 +163,12 @@ Obsidian Git pulls on your phone  →  you read the finished, cross-linked artic
 
 The bot only works while the process is alive and `claude` is reachable. To keep it always-on:
 
-- **Local:** run it under a process manager (pm2, nssm on Windows, systemd on Linux) or a `tmux`/screen session.
+- **Windows (turnkey):** start the bot hidden at every logon with one command —
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File scripts/install-autostart.ps1
+  ```
+  It registers a Scheduled Task that launches the bot through `wscript → run-bot.vbs → hidden PowerShell → pythonw.exe`, so **no console window ever appears** and nothing can be closed by accident. The supervisor auto-restarts the bot on crash (with backoff), a single-instance guard prevents duplicate pollers, and child `claude`/`git` calls run windowless too. Stop it anytime with `powershell -File scripts/stop-bot.ps1` (or `/stop` in Telegram); remove autostart with `Unregister-ScheduledTask -TaskName "LLM Wiki Telegram Bot" -Confirm:$false`.
+- **Other OS:** run it under a process manager (pm2, systemd on Linux) or a `tmux`/screen session.
 - **Server:** put the repo on a small VPS with Claude Code installed; sync via git.
 
 ## Security
@@ -184,6 +189,9 @@ The bot only works while the process is alive and `claude` is reachable. To keep
 
 - `scripts/flush.py "summary" [--files a.md b.md]` — append a session entry to `daily/YYYY-MM-DD.md` (handy as a Claude Code hook).
 - `scripts/compile.py --days 30` — summarize recent daily logs and flag knowledge pages worth updating.
+- `scripts/install-autostart.ps1` — Windows: register a hidden, supervised auto-start task (logon-triggered, single-instance, crash-restart).
+- `scripts/stop-bot.ps1` — Windows: reliably stop the bot and its supervisor (what `Stop-ScheduledTask` can't, since the bot is fire-and-forgotten by `wscript`).
+- `scripts/run-bot.ps1` / `scripts/run-bot.vbs` — the windowless launcher + supervisor invoked by the task (you normally don't run these directly).
 
 ## License
 
