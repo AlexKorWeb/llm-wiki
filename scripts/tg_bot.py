@@ -53,6 +53,12 @@ ASSETS_DIR = INBOX_DIR / "assets"
 KNOWLEDGE_DIR = WIKI_ROOT / "knowledge"
 LOGS_DIR = WIKI_ROOT / "scripts" / "logs"
 
+# CREATE_NO_WINDOW (0x08000000): дочерние консольные процессы (claude.exe, git.exe)
+# не должны открывать своё окно консоли. Без этого флага, когда бот запущен
+# безоконно (pythonw.exe), каждый подпроцесс всплывает отдельным окном, а закрытие
+# этого окна шлёт Ctrl+C и прерывает операцию. На не-Windows флаг = 0 (no-op).
+_NO_WINDOW = 0x08000000 if os.name == "nt" else 0
+
 load_dotenv(WIKI_ROOT / "scripts" / ".env")
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 OWNER_USER_ID = int(os.getenv("OWNER_USER_ID", "0") or "0")
@@ -360,6 +366,7 @@ async def run_ingest(application: Application) -> None:
                 cwd=str(WIKI_ROOT),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                creationflags=_NO_WINDOW,
             )
             stdout, stderr = await proc.communicate()
 
@@ -417,6 +424,7 @@ async def _run_git(*args: str) -> tuple[int, str, str]:
         cwd=str(WIKI_ROOT),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        creationflags=_NO_WINDOW,
     )
     stdout, stderr = await proc.communicate()
     return (
