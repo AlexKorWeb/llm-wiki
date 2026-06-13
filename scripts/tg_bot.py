@@ -64,6 +64,10 @@ BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 OWNER_USER_ID = int(os.getenv("OWNER_USER_ID", "0") or "0")
 DEBOUNCE_SECONDS = int(os.getenv("DEBOUNCE_SECONDS", "60") or "60")
 MAX_TURNS = int(os.getenv("CLAUDE_MAX_TURNS", "60") or "60")
+# Модель для `claude -p`. Если задана — передаём --model, чтобы INGEST НЕ зависел
+# от глобального дефолта Claude Code (иначе смена модели через /model или временно
+# недоступная модель ломает все INGEST). Пусто => наследуется дефолт claude.
+CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "").strip()
 
 if not BOT_TOKEN or not OWNER_USER_ID:
     raise SystemExit(
@@ -358,11 +362,13 @@ async def run_ingest(application: Application) -> None:
         # Снимок mtime вики ДО — для верификации что что-то изменилось
         before_mtime = _max_wiki_mtime()
 
+        claude_args = ["-p", prompt, "--max-turns", str(MAX_TURNS)]
+        if CLAUDE_MODEL:
+            claude_args += ["--model", CLAUDE_MODEL]
         try:
             proc = await asyncio.create_subprocess_exec(
                 claude_cmd,
-                "-p", prompt,
-                "--max-turns", str(MAX_TURNS),
+                *claude_args,
                 cwd=str(WIKI_ROOT),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
